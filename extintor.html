@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ExtintorQR — JAAM</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyACgZKKSqRNVOymnpfxtcokZ2IFXytdHBw",
+    authDomain: "extintores-jaam.firebaseapp.com",
+    databaseURL: "https://extintores-jaam-default-rtdb.firebaseio.com",
+    projectId: "extintores-jaam",
+    storageBucket: "extintores-jaam.firebasestorage.app",
+    messagingSenderId: "664127030857",
+    appId: "1:664127030857:web:71232f7cc260a3bd3a6198"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  window._db = db;
+  window._fs = { doc, getDoc, setDoc, collection, getDocs, deleteDoc };
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --rojo: #C0392B; --rojo-dk: #96281B; --rojo-lt: #FADBD8;
+  --gris: #1C2833; --gris-md: #5D6D7E; --gris-lt: #F4F6F7;
+  --verde: #1E8449; --verde-lt: #D5F5E3;
+  --naranja: #B7770D; --naranja-lt: #FEF9E7;
+  --amarillo: #F39C12;
+}
+body { font-family: 'DM Sans', sans-serif; background: #EDECEA; min-height: 100vh; color: var(--gris); }
+
+/* NAV */
+.nav { background: var(--rojo); padding: 0.7rem 1.25rem; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 12px rgba(192,57,43,0.3); }
+.nav-logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1rem; color: white; display: flex; align-items: center; gap: 0.4rem; }
+.nav-logo span { font-size: 1.3rem; }
+.nav-tabs { display: flex; gap: 3px; background: rgba(0,0,0,0.18); padding: 3px; border-radius: 8px; }
+.nav-tab { padding: 0.35rem 0.85rem; border-radius: 6px; border: none; background: transparent; color: rgba(255,255,255,0.65); font-family: 'DM Sans', sans-serif; font-size: 0.82rem; cursor: pointer; transition: all 0.18s; white-space: nowrap; }
+.nav-tab.active { background: white; color: var(--rojo); font-weight: 500; }
+.nav-tab:hover:not(.active) { color: white; background: rgba(255,255,255,0.12); }
+
+/* PÁGINAS */
+.page { display: none; padding: 1.5rem 1rem; max-width: 700px; margin: 0 auto; }
+.page.activa { display: block; }
+
+/* LOADING */
+.loading-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4rem 1rem; gap: 1rem; color: var(--gris-md); font-size: 0.9rem; }
+.spinner { width: 36px; height: 36px; border: 3px solid #ddd; border-top-color: var(--rojo); border-radius: 50%; animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* FICHA PÚBLICA */
+.card { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 30px rgba(0,0,0,0.07); }
+.card-header { background: var(--rojo); padding: 1.75rem 1.75rem 1.4rem; position: relative; overflow: hidden; }
+.card-header::before { content: ''; position: absolute; right: -20px; top: -20px; width: 160px; height: 160px; border-radius: 50%; background: rgba(255,255,255,0.07); }
+.card-header::after { content: ''; position: absolute; right: 50px; bottom: -55px; width: 110px; height: 110px; border-radius: 50%; background: rgba(255,255,255,0.05); }
+.card-badge { display: inline-flex; align-items: center; gap: 0.35rem; background: rgba(255,255,255,0.18); color: white; font-size: 0.7rem; font-weight: 500; padding: 0.25rem 0.65rem; border-radius: 20px; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.85rem; }
+.card-nombre { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.8rem; color: white; line-height: 1.1; margin-bottom: 0.25rem; position: relative; z-index: 1; }
+.card-ubicacion { font-size: 0.85rem; color: rgba(255,255,255,0.72); position: relative; z-index: 1; display: flex; align-items: center; gap: 0.3rem; }
+.estado-pill { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-top: 0.85rem; position: relative; z-index: 1; }
+.estado-pill.vigente { background: #D5F5E3; color: #1E8449; }
+.estado-pill.proximo { background: #FEF9E7; color: #B7770D; }
+.estado-pill.vencido { background: #FADBD8; color: #922B21; }
+.estado-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.card-foto { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; }
+.card-foto-placeholder { width: 100%; padding: 1.25rem; background: #F4F4F2; display: flex; align-items: center; justify-content: center; color: #ccc; font-size: 0.8rem; gap: 0.4rem; }
+.card-body { padding: 1.5rem 1.75rem; }
+.datos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 1.25rem; }
+.dato { background: var(--gris-lt); border-radius: 10px; padding: 0.85rem 1rem; }
+.dato-label { font-size: 0.67rem; font-weight: 500; color: #aaa; letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 0.25rem; }
+.dato-valor { font-family: 'Syne', sans-serif; font-size: 1.05rem; font-weight: 700; color: var(--gris); }
+.dato-valor.acento { color: var(--rojo); }
+.sep { height: 1px; background: #EDEDE8; margin: 1.1rem 0; }
+.obs-label { font-size: 0.67rem; font-weight: 500; color: var(--naranja); letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 0.3rem; }
+.obs-box { background: #FFFBF0; border-left: 3px solid var(--amarillo); border-radius: 0 8px 8px 0; padding: 0.75rem 0.9rem; font-size: 0.88rem; color: #555; line-height: 1.6; }
+.card-footer { background: var(--gris-lt); padding: 1rem 1.75rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.73rem; color: #bbb; border-top: 1px solid #EDEDE8; flex-wrap: wrap; gap: 0.4rem; }
+
+/* ERROR */
+.error-card { background: white; border-radius: 20px; padding: 3rem 2rem; text-align: center; box-shadow: 0 4px 30px rgba(0,0,0,0.07); }
+.error-icon { font-size: 3rem; margin-bottom: 1rem; }
+.error-titulo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.3rem; color: var(--gris); margin-bottom: 0.5rem; }
+.error-texto { font-size: 0.9rem; color: var(--gris-md); line-height: 1.6; }
+
+/* ADMIN */
+.admin-titulo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.4rem; color: var(--gris); margin-bottom: 0.3rem; }
+.admin-sub { font-size: 0.85rem; color: var(--gris-md); margin-bottom: 1.5rem; line-height: 1.5; }
+.lista-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.lista-titulo { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.9rem; color: var(--gris); }
+.btn-nuevo { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1rem; background: var(--rojo); color: white; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: background 0.18s; }
+.btn-nuevo:hover { background: var(--rojo-dk); }
+
+.extintor-item { background: white; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 1rem; box-shadow: 0 1px 8px rgba(0,0,0,0.05); cursor: pointer; transition: box-shadow 0.18s, transform 0.15s; }
+.extintor-item:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.1); transform: translateY(-1px); }
+.extintor-item-icon { font-size: 1.5rem; flex-shrink: 0; width: 42px; height: 42px; background: var(--gris-lt); border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+.extintor-item-info { flex: 1; min-width: 0; }
+.extintor-item-nombre { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.92rem; color: var(--gris); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.extintor-item-meta { font-size: 0.75rem; color: var(--gris-md); margin-top: 0.12rem; }
+.extintor-item-estado { flex-shrink: 0; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.68rem; font-weight: 600; }
+.extintor-item-estado.vigente { background: var(--verde-lt); color: var(--verde); }
+.extintor-item-estado.proximo { background: var(--naranja-lt); color: var(--naranja); }
+.extintor-item-estado.vencido { background: var(--rojo-lt); color: var(--rojo-dk); }
+.extintor-item-arrow { color: #ccc; font-size: 1.1rem; flex-shrink: 0; }
+
+/* FORMULARIO */
+.form-card { background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 2px 16px rgba(0,0,0,0.05); margin-bottom: 1rem; }
+.form-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid #EDEDE8; }
+.btn-back { background: var(--gris-lt); border: none; border-radius: 8px; width: 34px; height: 34px; cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.15s; }
+.btn-back:hover { background: #ddd; }
+.form-titulo { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.1rem; color: var(--gris); }
+.sec-titulo { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--rojo); margin: 1.4rem 0 0.85rem; display: flex; align-items: center; gap: 0.5rem; }
+.sec-titulo:first-of-type { margin-top: 0; }
+.sec-line { flex: 1; height: 1px; background: #EEE; }
+.campo { margin-bottom: 0.9rem; }
+.campo label { display: block; font-size: 0.78rem; font-weight: 500; color: #666; margin-bottom: 0.35rem; }
+.campo input, .campo select, .campo textarea { width: 100%; padding: 0.55rem 0.85rem; border: 1.5px solid #E0DDD5; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 0.92rem; color: var(--gris); background: white; outline: none; transition: border-color 0.18s; }
+.campo input:focus, .campo select:focus, .campo textarea:focus { border-color: var(--rojo); }
+.campo textarea { min-height: 75px; resize: vertical; }
+.doble { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; }
+
+/* FOTO */
+.foto-zona { border: 2px dashed #DDD; border-radius: 10px; padding: 1.25rem; text-align: center; cursor: pointer; background: #FAFAF8; transition: border-color 0.18s, background 0.18s; margin-bottom: 0.6rem; }
+.foto-zona:hover { border-color: var(--rojo); background: #FFF8F7; }
+.foto-zona input { display: none; }
+.foto-zona-icon { font-size: 1.8rem; margin-bottom: 0.3rem; }
+.foto-zona-txt { font-size: 0.8rem; color: #999; line-height: 1.5; }
+.foto-zona-txt strong { color: var(--rojo); }
+.foto-preview { width: 100%; max-height: 180px; object-fit: cover; border-radius: 8px; display: none; margin-bottom: 0.5rem; }
+.btn-quitar { background: none; border: 1px solid #ddd; border-radius: 6px; padding: 0.3rem 0.75rem; font-size: 0.78rem; color: #999; cursor: pointer; display: none; margin-bottom: 0.5rem; transition: all 0.15s; }
+.btn-quitar:hover { border-color: var(--rojo); color: var(--rojo); }
+.foto-sep { display: flex; align-items: center; gap: 0.6rem; color: #ccc; font-size: 0.78rem; margin-bottom: 0.6rem; }
+.foto-sep::before, .foto-sep::after { content: ''; flex: 1; height: 1px; background: #EEE; }
+
+/* BOTONES */
+.acciones { display: flex; gap: 0.6rem; margin-top: 1.25rem; flex-wrap: wrap; }
+.btn-guardar { flex: 1; padding: 0.8rem; background: var(--rojo); color: white; border: none; border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: background 0.18s, transform 0.1s; display: flex; align-items: center; justify-content: center; gap: 0.4rem; min-width: 140px; }
+.btn-guardar:hover { background: var(--rojo-dk); }
+.btn-guardar:active { transform: scale(0.98); }
+.btn-eliminar { padding: 0.8rem 1.1rem; background: white; color: var(--rojo); border: 1.5px solid var(--rojo-lt); border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 0.88rem; font-weight: 500; cursor: pointer; transition: all 0.18s; display: flex; align-items: center; gap: 0.35rem; }
+.btn-eliminar:hover { background: var(--rojo-lt); }
+.alerta { display: none; border-radius: 8px; padding: 0.65rem 1rem; font-size: 0.85rem; font-weight: 500; text-align: center; margin-top: 0.75rem; align-items: center; justify-content: center; gap: 0.4rem; }
+.alerta.ok { background: var(--verde-lt); color: var(--verde); }
+.alerta.err { background: var(--rojo-lt); color: var(--rojo-dk); }
+.alerta.show { display: flex; }
+
+/* QR */
+.qr-card { background: white; border-radius: 16px; padding: 1.5rem; text-align: center; box-shadow: 0 2px 16px rgba(0,0,0,0.05); }
+.qr-titulo { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.95rem; color: var(--gris); margin-bottom: 0.25rem; }
+.qr-sub { font-size: 0.78rem; color: #aaa; margin-bottom: 1.1rem; }
+#qrcode { display: flex; justify-content: center; margin-bottom: 0.85rem; }
+#qrcode canvas, #qrcode img { border-radius: 6px; }
+.qr-url-box { font-size: 0.72rem; color: #aaa; word-break: break-all; background: #F8F7F4; padding: 0.45rem 0.7rem; border-radius: 6px; margin-bottom: 0.85rem; }
+.btn-print { padding: 0.45rem 1.25rem; background: white; color: var(--rojo); border: 1.5px solid var(--rojo); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 0.83rem; font-weight: 500; cursor: pointer; transition: all 0.18s; }
+.btn-print:hover { background: var(--rojo); color: white; }
+
+@media (max-width: 480px) {
+  .datos-grid, .doble { grid-template-columns: 1fr; }
+  .card-nombre { font-size: 1.5rem; }
+  .card-body, .card-header { padding: 1.1rem 1.25rem; }
+}
+@media print {
+  .nav, .page-admin, .qr-card { display: none !important; }
+  .page-publica { display: block !important; padding: 0; }
+  .card { box-shadow: none; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-logo"><span>🧯</span> ExtintorQR · JAAM</div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="irVista('publica', this)">Ver Extintor</button>
+    <button class="nav-tab" onclick="irVista('admin', this)">⚙️ Administrar</button>
+  </div>
+</nav>
+
+<!-- VISTA PÚBLICA -->
+<div class="page page-publica activa" id="page-publica">
+  <div id="pub-loading" class="loading-wrap">
+    <div class="spinner"></div>
+    <span>Cargando información del extintor…</span>
+  </div>
+  <div id="pub-content" style="display:none"></div>
+</div>
+
+<!-- VISTA ADMIN -->
+<div class="page page-admin" id="page-admin">
+
+  <div id="admin-lista">
+    <div class="admin-titulo">Panel de administración</div>
+    <div class="admin-sub">Gestiona todos los extintores. Haz clic en uno para editarlo o crea uno nuevo.</div>
+    <div class="lista-header">
+      <div class="lista-titulo" id="lista-count">Cargando…</div>
+      <button class="btn-nuevo" onclick="abrirForm(null)">＋ Nuevo extintor</button>
+    </div>
+    <div id="lista-extintores">
+      <div class="loading-wrap"><div class="spinner"></div><span>Cargando…</span></div>
+    </div>
+  </div>
+
+  <div id="admin-form" style="display:none">
+    <div class="form-card">
+      <div class="form-header">
+        <button class="btn-back" onclick="volverLista()">←</button>
+        <div class="form-titulo" id="form-titulo">Nuevo extintor</div>
+      </div>
+
+      <div class="sec-titulo">Identificación <span class="sec-line"></span></div>
+      <div class="doble">
+        <div class="campo"><label>Nombre / Descripción *</label><input id="f-nombre" type="text" placeholder="Ej: Extintor Principal"></div>
+        <div class="campo"><label>Código / ID *</label><input id="f-codigo" type="text" placeholder="Ej: EXT-001"></div>
+      </div>
+      <div class="campo"><label>Ubicación exacta</label><input id="f-ubicacion" type="text" placeholder="Ej: Pasillo 2, junto a la escalera"></div>
+
+      <div class="sec-titulo">Datos técnicos <span class="sec-line"></span></div>
+      <div class="doble">
+        <div class="campo"><label>Tipo / Clase</label>
+          <select id="f-tipo"><option>PQS - ABC</option><option>CO₂ - BC</option><option>Agua - A</option><option>Espuma - AB</option><option>Halón - BC</option><option>Otro</option></select>
+        </div>
+        <div class="campo"><label>Capacidad / Peso</label><input id="f-peso" type="text" placeholder="Ej: 10 kg"></div>
+      </div>
+      <div class="doble">
+        <div class="campo"><label>Presión del manómetro</label>
+          <select id="f-presion"><option>Normal</option><option>Alta</option><option>Baja</option></select>
+        </div>
+        <div class="campo"><label>Responsable</label><input id="f-responsable" type="text" placeholder="Nombre del responsable"></div>
+      </div>
+
+      <div class="sec-titulo">Fechas <span class="sec-line"></span></div>
+      <div class="doble">
+        <div class="campo"><label>Última recarga</label><input id="f-recarga" type="month"></div>
+        <div class="campo"><label>Fecha de vencimiento</label><input id="f-vencimiento" type="month"></div>
+      </div>
+      <div class="campo"><label>Última inspección</label><input id="f-inspeccion" type="month"></div>
+
+      <div class="sec-titulo">Foto <span class="sec-line"></span></div>
+      <div class="foto-zona" onclick="document.getElementById('f-foto-file').click()">
+        <input type="file" id="f-foto-file" accept="image/*" onchange="cargarFotoArchivo(event)">
+        <div class="foto-zona-icon">📁</div>
+        <div class="foto-zona-txt"><strong>Haz clic</strong> para seleccionar una foto desde tu computadora o celular</div>
+      </div>
+      <img class="foto-preview" id="foto-preview" alt="Vista previa">
+      <button class="btn-quitar" id="btn-quitar" onclick="quitarFoto()">✕ Quitar foto</button>
+      <div class="foto-sep">o pega un enlace de internet</div>
+      <div class="campo"><label>URL de la imagen (opcional)</label><input id="f-foto-url" type="url" placeholder="https://..." oninput="previsualizarUrl()"></div>
+
+      <div class="sec-titulo">Observaciones <span class="sec-line"></span></div>
+      <div class="campo"><label>Notas u observaciones (opcional)</label><textarea id="f-observaciones" placeholder="Ej: Requiere revisión del manómetro…"></textarea></div>
+
+      <div class="acciones">
+        <button class="btn-guardar" onclick="guardarExtintor()">💾 Guardar</button>
+        <button class="btn-eliminar" id="btn-eliminar" onclick="eliminarExtintor()" style="display:none">🗑 Eliminar</button>
+      </div>
+      <div class="alerta ok" id="alerta-ok"></div>
+      <div class="alerta err" id="alerta-err"></div>
+    </div>
+
+    <div class="qr-card" id="qr-card" style="display:none">
+      <div class="qr-titulo">Código QR de este extintor</div>
+      <div class="qr-sub">Imprime y pégalo en el extintor físico</div>
+      <div id="qrcode"></div>
+      <div class="qr-url-box" id="qr-url-box">—</div>
+      <button class="btn-print" onclick="window.print()">🖨️ Imprimir QR</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Utilidades ──────────────────────────────────────────────
+function getParam(k) { return new URLSearchParams(window.location.search).get(k); }
+function fmtMes(v) {
+  if (!v) return '—';
+  const [a,m] = v.split('-');
+  return ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][+m-1]+' '+a;
+}
+function estado(venc) {
+  if (!venc) return {cls:'vigente',txt:'Sin fecha'};
+  const hoy = new Date(), [a,m] = venc.split('-').map(Number);
+  const d = (a-hoy.getFullYear())*12+(m-1-hoy.getMonth());
+  return d<0 ? {cls:'vencido',txt:'VENCIDO'} : d<=2 ? {cls:'proximo',txt:'Próximo a vencer'} : {cls:'vigente',txt:'Vigente'};
+}
+
+// ── Navegación ───────────────────────────────────────────────
+function irVista(v, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('activa'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+v).classList.add('activa');
+  btn.classList.add('active');
+  if (v==='admin') cargarLista();
+}
+
+// ── Vista pública ────────────────────────────────────────────
+function renderFicha(d) {
+  const est = estado(d.vencimiento);
+  const foto = d.foto
+    ? `<img class="card-foto" src="${d.foto}" alt="Foto" onerror="this.style.display='none'">`
+    : `<div class="card-foto-placeholder">📷 Sin foto registrada</div>`;
+  const obs = d.observaciones
+    ? `<div class="sep"></div><div class="obs-label">⚠️ Observaciones</div><div class="obs-box">${d.observaciones}</div>`
+    : '';
+  return `<div class="card">
+    <div class="card-header">
+      <div class="card-badge">🧯 Extintor de Incendios</div>
+      <div class="card-nombre">${d.nombre||'Sin nombre'}</div>
+      <div class="card-ubicacion">📍 ${d.ubicacion||'—'}</div>
+      <div class="estado-pill ${est.cls}"><span class="estado-dot"></span>${est.txt}</div>
+    </div>
+    ${foto}
+    <div class="card-body">
+      <div class="datos-grid">
+        <div class="dato"><div class="dato-label">Tipo / Clase</div><div class="dato-valor">${d.tipo||'—'}</div></div>
+        <div class="dato"><div class="dato-label">Capacidad / Peso</div><div class="dato-valor acento">${d.peso||'—'}</div></div>
+        <div class="dato"><div class="dato-label">Última recarga</div><div class="dato-valor">${fmtMes(d.recarga)}</div></div>
+        <div class="dato"><div class="dato-label">Vence</div><div class="dato-valor acento">${fmtMes(d.vencimiento)}</div></div>
+        <div class="dato"><div class="dato-label">Presión</div><div class="dato-valor">${d.presion||'—'}</div></div>
+        <div class="dato"><div class="dato-label">Código / ID</div><div class="dato-valor">${d.codigo||'—'}</div></div>
+        <div class="dato"><div class="dato-label">Responsable</div><div class="dato-valor">${d.responsable||'—'}</div></div>
+        <div class="dato"><div class="dato-label">Última inspección</div><div class="dato-valor">${fmtMes(d.inspeccion)}</div></div>
+      </div>${obs}
+    </div>
+    <div class="card-footer">
+      <span>Actualizado: <strong>${d.actualizado||'—'}</strong></span>
+      <span>ExtintorQR · JAAM</span>
+    </div>
+  </div>`;
+}
+
+async function cargarFichaPublica() {
+  const id = getParam('id');
+  const loading = document.getElementById('pub-loading');
+  const content = document.getElementById('pub-content');
+  if (!id) {
+    loading.style.display='none'; content.style.display='block';
+    content.innerHTML=`<div class="error-card"><div class="error-icon">🔍</div><div class="error-titulo">Sin extintor seleccionado</div><div class="error-texto">Escanea el código QR de un extintor para ver su ficha, o ve al panel de administración para gestionarlos.</div></div>`;
+    return;
+  }
+  try {
+    const {doc,getDoc}=window._fs;
+    const snap=await getDoc(doc(window._db,'extintores',id));
+    loading.style.display='none'; content.style.display='block';
+    if (!snap.exists()) {
+      content.innerHTML=`<div class="error-card"><div class="error-icon">🧯</div><div class="error-titulo">Extintor no encontrado</div><div class="error-texto">No hay extintor con ID "<strong>${id}</strong>". Créalo en el panel de administración.</div></div>`;
+    } else {
+      content.innerHTML=renderFicha(snap.data());
+    }
+  } catch(e) {
+    loading.style.display='none'; content.style.display='block';
+    content.innerHTML=`<div class="error-card"><div class="error-icon">⚠️</div><div class="error-titulo">Error de conexión</div><div class="error-texto">No se pudo conectar con Firebase. Verifica tu internet.</div></div>`;
+  }
+}
+
+// ── Admin: lista ─────────────────────────────────────────────
+async function cargarLista() {
+  const cont=document.getElementById('lista-extintores');
+  const count=document.getElementById('lista-count');
+  cont.innerHTML='<div class="loading-wrap"><div class="spinner"></div><span>Cargando…</span></div>';
+  try {
+    const {collection,getDocs}=window._fs;
+    const snap=await getDocs(collection(window._db,'extintores'));
+    const docs=[];
+    snap.forEach(d=>docs.push({id:d.id,...d.data()}));
+    docs.sort((a,b)=>(a.codigo||'').localeCompare(b.codigo||''));
+    count.textContent=`${docs.length} extintor${docs.length!==1?'es':''} registrado${docs.length!==1?'s':''}`;
+    if (!docs.length) {
+      cont.innerHTML=`<div style="text-align:center;padding:2.5rem;color:#aaa;font-size:0.9rem;">No hay extintores aún.<br>Haz clic en <strong>+ Nuevo extintor</strong> para comenzar.</div>`;
+      return;
+    }
+    cont.innerHTML=docs.map(d=>{
+      const est=estado(d.vencimiento);
+      return `<div class="extintor-item" onclick="abrirForm('${d.id}')">
+        <div class="extintor-item-icon">🧯</div>
+        <div class="extintor-item-info">
+          <div class="extintor-item-nombre">${d.nombre||'Sin nombre'}</div>
+          <div class="extintor-item-meta">${d.codigo||'—'} · ${d.ubicacion||'Sin ubicación'}</div>
+        </div>
+        <div class="extintor-item-estado ${est.cls}">${est.txt}</div>
+        <div class="extintor-item-arrow">›</div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    cont.innerHTML=`<div style="text-align:center;padding:2rem;color:var(--rojo);font-size:0.88rem;">Error al cargar. Verifica tu conexión.</div>`;
+  }
+}
+
+// ── Admin: formulario ────────────────────────────────────────
+let _editId=null, _fotoData='';
+
+function abrirForm(id) {
+  _editId=id; _fotoData='';
+  document.getElementById('admin-lista').style.display='none';
+  document.getElementById('admin-form').style.display='block';
+  document.getElementById('qr-card').style.display='none';
+  document.getElementById('qrcode').innerHTML='';
+  limpiarForm();
+  if (!id) {
+    document.getElementById('form-titulo').textContent='Nuevo extintor';
+    document.getElementById('btn-eliminar').style.display='none';
+  } else {
+    document.getElementById('form-titulo').textContent='Editar extintor';
+    document.getElementById('btn-eliminar').style.display='flex';
+    cargarParaEditar(id);
+  }
+}
+
+function limpiarForm() {
+  ['f-nombre','f-codigo','f-ubicacion','f-peso','f-responsable','f-recarga','f-vencimiento','f-inspeccion','f-foto-url','f-observaciones'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('f-tipo').value='PQS - ABC';
+  document.getElementById('f-presion').value='Normal';
+  document.getElementById('foto-preview').style.display='none';
+  document.getElementById('btn-quitar').style.display='none';
+  document.getElementById('f-foto-file').value='';
+  ['alerta-ok','alerta-err'].forEach(id=>document.getElementById(id).classList.remove('show'));
+}
+
+async function cargarParaEditar(id) {
+  try {
+    const {doc,getDoc}=window._fs;
+    const snap=await getDoc(doc(window._db,'extintores',id));
+    if (!snap.exists()) return;
+    const d=snap.data();
+    const set=(fId,val)=>{const el=document.getElementById(fId);if(el)el.value=val||'';};
+    set('f-nombre',d.nombre); set('f-codigo',d.codigo); set('f-ubicacion',d.ubicacion);
+    set('f-peso',d.peso); set('f-responsable',d.responsable);
+    set('f-recarga',d.recarga); set('f-vencimiento',d.vencimiento); set('f-inspeccion',d.inspeccion);
+    set('f-observaciones',d.observaciones);
+    document.getElementById('f-tipo').value=d.tipo||'PQS - ABC';
+    document.getElementById('f-presion').value=d.presion||'Normal';
+    if (d.foto) {
+      _fotoData=d.foto; mostrarPreview(d.foto);
+      if (!d.foto.startsWith('data:')) document.getElementById('f-foto-url').value=d.foto;
+    }
+    generarQR(id);
+  } catch(e){ console.error(e); }
+}
+
+function volverLista() {
+  document.getElementById('admin-form').style.display='none';
+  document.getElementById('admin-lista').style.display='block';
+  cargarLista();
+}
+
+async function guardarExtintor() {
+  const nombre=document.getElementById('f-nombre').value.trim();
+  const codigo=document.getElementById('f-codigo').value.trim();
+  if (!nombre||!codigo) { mostrarAlerta('err','❌ El nombre y el código son obligatorios.'); return; }
+  const urlFoto=document.getElementById('f-foto-url').value.trim();
+  const datos={
+    nombre, codigo,
+    ubicacion:   document.getElementById('f-ubicacion').value.trim(),
+    tipo:        document.getElementById('f-tipo').value,
+    peso:        document.getElementById('f-peso').value.trim(),
+    presion:     document.getElementById('f-presion').value,
+    responsable: document.getElementById('f-responsable').value.trim(),
+    recarga:     document.getElementById('f-recarga').value,
+    vencimiento: document.getElementById('f-vencimiento').value,
+    inspeccion:  document.getElementById('f-inspeccion').value,
+    observaciones:document.getElementById('f-observaciones').value.trim(),
+    foto:        _fotoData||urlFoto||'',
+    actualizado: new Date().toLocaleDateString('es-CR',{day:'2-digit',month:'short',year:'numeric'})
+  };
+  const docId=_editId||codigo;
+  try {
+    const {doc,setDoc}=window._fs;
+    await setDoc(doc(window._db,'extintores',docId),datos);
+    _editId=docId;
+    mostrarAlerta('ok','✅ Guardado correctamente');
+    generarQR(docId);
+  } catch(e) {
+    mostrarAlerta('err','❌ Error al guardar. Revisa tu conexión.');
+  }
+}
+
+async function eliminarExtintor() {
+  if (!_editId||!confirm('¿Eliminar este extintor? Esta acción no se puede deshacer.')) return;
+  try {
+    const {doc,deleteDoc}=window._fs;
+    await deleteDoc(doc(window._db,'extintores',_editId));
+    volverLista();
+  } catch(e){ mostrarAlerta('err','❌ Error al eliminar.'); }
+}
+
+function mostrarAlerta(tipo,msg) {
+  ['ok','err'].forEach(t=>document.getElementById('alerta-'+t).classList.remove('show'));
+  const el=document.getElementById('alerta-'+tipo);
+  el.textContent=msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),3500);
+}
+
+// ── Foto ─────────────────────────────────────────────────────
+function cargarFotoArchivo(e) {
+  const file=e.target.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=ev=>{ _fotoData=ev.target.result; mostrarPreview(ev.target.result); document.getElementById('f-foto-url').value=''; };
+  r.readAsDataURL(file);
+}
+function mostrarPreview(src) {
+  const p=document.getElementById('foto-preview');
+  p.src=src; p.style.display='block';
+  document.getElementById('btn-quitar').style.display='inline-block';
+}
+function previsualizarUrl() {
+  const url=document.getElementById('f-foto-url').value.trim();
+  if(url){ _fotoData=''; mostrarPreview(url); }
+}
+function quitarFoto() {
+  _fotoData='';
+  document.getElementById('foto-preview').style.display='none';
+  document.getElementById('btn-quitar').style.display='none';
+  document.getElementById('f-foto-url').value='';
+  document.getElementById('f-foto-file').value='';
+}
+
+// ── QR ───────────────────────────────────────────────────────
+function generarQR(id) {
+  const base=window.location.href.split('?')[0];
+  const url=`${base}?id=${encodeURIComponent(id)}`;
+  document.getElementById('qr-card').style.display='block';
+  document.getElementById('qr-url-box').textContent=url;
+  document.getElementById('qrcode').innerHTML='';
+  new QRCode(document.getElementById('qrcode'),{
+    text:url, width:180, height:180,
+    colorDark:'#1C2833', colorLight:'#ffffff',
+    correctLevel:QRCode.CorrectLevel.H
+  });
+}
+
+// ── Init ─────────────────────────────────────────────────────
+window.addEventListener('firebase-ready',()=>{
+  cargarFichaPublica();
+});
+</script>
+</body>
+</html>
